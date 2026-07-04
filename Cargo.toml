@@ -1,6 +1,12 @@
+# Quantum Studio — a GPU-accelerated, Rust-native IDE.
 [workspace]
 resolver = "2"
-members = ["crates/ide-core", "crates/ide-gpu", "crates/ide-app"]
+members = [
+    "crates/ide-core",
+    "crates/ide-gpu",
+    "crates/ide-text",
+    "crates/ide-app",
+]
 
 [profile.release]
 opt-level = 3
@@ -11,6 +17,9 @@ strip = true
 
 [profile.dev]
 opt-level = 0
+
+[profile.dev.package."*"]
+opt-level = 2
 
 [workspace.dependencies]
 thiserror = "1.0"
