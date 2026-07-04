@@ -1,0 +1,15 @@
+[package]
+name = "ide-gpu"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.79"
+
+[dependencies]
+ide-core = { path = "../ide-core" }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+wgpu = "0.19"
+pollster = "0.3"
+raw-window-handle = "0.6"
+winit = "0.29"

@@ -1,0 +1,19 @@
+[workspace]
+resolver = "2"
+members = ["crates/ide-core", "crates/ide-gpu", "crates/ide-app"]
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.dev]
+opt-level = 0
+
+[workspace.dependencies]
+thiserror = "1.0"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

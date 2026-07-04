@@ -1,0 +1,23 @@
+[package]
+name = "quantum-studio"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.79"
+description = "Quantum Studio - a GPU-accelerated, Rust-native IDE"
+
+[[bin]]
+name = "quantum-studio"
+path = "src/main.rs"
+
+[dependencies]
+ide-core = { path = "../ide-core" }
+ide-gpu = { path = "../ide-gpu" }
+
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+winit = "0.29"
+pollster = "0.3"
+wgpu = "0.19"
