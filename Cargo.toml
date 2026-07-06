@@ -6,6 +6,7 @@ members = [
     "crates/ide-gpu",
     "crates/ide-text",
     "crates/ide-buffer",
+    "crates/ide-ui",
     "crates/ide-app",
 ]
 

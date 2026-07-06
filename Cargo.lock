@@ -743,6 +743,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ide-ui"
+version = "0.1.0"
+dependencies = [
+ "ide-buffer",
+ "ide-core",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
 name = "indexmap"
 version = "2.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1227,6 +1237,7 @@ dependencies = [
  "ide-core",
  "ide-gpu",
  "ide-text",
+ "ide-ui",
  "pollster",
  "thiserror",
  "tracing",

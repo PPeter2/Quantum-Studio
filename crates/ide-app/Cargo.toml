@@ -14,6 +14,7 @@ ide-core = { path = "../ide-core" }
 ide-gpu = { path = "../ide-gpu" }
 ide-text = { path = "../ide-text" }
 ide-buffer = { path = "../ide-buffer" }
+ide-ui = { path = "../ide-ui" }
 
 thiserror = { workspace = true }
 anyhow = { workspace = true }

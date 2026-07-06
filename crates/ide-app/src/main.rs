@@ -4,9 +4,11 @@ use std::time::Instant;
 use ide_buffer::TextBuffer;
 use ide_gpu::{CursorRenderer, GpuContext, PositionedGlyph, TextRenderer};
 use ide_text::{RasterizedGlyph, TextSystem};
+use ide_ui::{EditorWidget, Key, KeyEvent};
 use winit::{
-    event::{Event, WindowEvent},
+    event::{ElementState, Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
+    keyboard::{Key as WinitKey, NamedKey},
     window::WindowBuilder,
 };
 
@@ -16,12 +18,45 @@ const ORIGIN: (f32, f32) = (24.0, 24.0);
 const CURSOR_WIDTH: f32 = 2.0;
 const BLINK_PERIOD_MS: u128 = 500;
 
+fn translate_key_event(event: &winit::event::KeyEvent) -> Option<KeyEvent> {
+    if event.state != ElementState::Pressed {
+        return None;
+    }
+
+    let key = match &event.logical_key {
+        WinitKey::Named(NamedKey::Backspace) => Key::Backspace,
+        WinitKey::Named(NamedKey::Delete) => Key::Delete,
+        WinitKey::Named(NamedKey::Enter) => Key::Enter,
+        WinitKey::Named(NamedKey::ArrowLeft) => Key::ArrowLeft,
+        WinitKey::Named(NamedKey::ArrowRight) => Key::ArrowRight,
+        WinitKey::Named(NamedKey::ArrowUp) => Key::ArrowUp,
+        WinitKey::Named(NamedKey::ArrowDown) => Key::ArrowDown,
+        WinitKey::Named(NamedKey::Home) => Key::Home,
+        WinitKey::Named(NamedKey::End) => Key::End,
+        WinitKey::Named(NamedKey::Space) => Key::Char(' '),
+        WinitKey::Character(s) => {
+            let mut chars = s.chars();
+            let first = chars.next()?;
+            if chars.next().is_some() {
+                return None;
+            }
+            Key::Char(first)
+        }
+        _ => return None,
+    };
+
+    Some(KeyEvent::new(key))
+}
+
 fn build_editor_text_renderer(
     gpu: &GpuContext,
     text_system: &mut TextSystem,
-    buffer: &TextBuffer,
+    editor: &EditorWidget,
     window_size: (u32, u32),
 ) -> anyhow::Result<(TextRenderer, (f32, f32, f32, f32))> {
+    let buffer = editor.buffer();
+    let cursor = editor.cursor();
+
     let mut lines_glyphs: Vec<Vec<RasterizedGlyph>> = Vec::with_capacity(buffer.line_count());
 
     for i in 0..buffer.line_count() {
@@ -59,17 +94,16 @@ fn build_editor_text_renderer(
         window_size,
     );
 
-    let line0_end_x = lines_glyphs
-        .first()
-        .and_then(|glyphs| glyphs.last())
-        .map(|g| ORIGIN.0 + g.x as f32 + g.width as f32)
-        .unwrap_or(ORIGIN.0);
-    let cursor_rect = (
-        line0_end_x,
-        ORIGIN.1,
-        line0_end_x + CURSOR_WIDTH,
-        ORIGIN.1 + LINE_HEIGHT,
-    );
+    let cursor_x = match lines_glyphs.get(cursor.line) {
+        Some(glyphs) if cursor.column > 0 => glyphs
+            .get(cursor.column - 1)
+            .map(|g| ORIGIN.0 + g.x as f32 + g.width as f32)
+            .or_else(|| glyphs.last().map(|g| ORIGIN.0 + g.x as f32 + g.width as f32))
+            .unwrap_or(ORIGIN.0),
+        _ => ORIGIN.0,
+    };
+    let cursor_y = ORIGIN.1 + cursor.line as f32 * LINE_HEIGHT;
+    let cursor_rect = (cursor_x, cursor_y, cursor_x + CURSOR_WIDTH, cursor_y + LINE_HEIGHT);
 
     Ok((text_renderer, cursor_rect))
 }
@@ -97,15 +131,15 @@ fn main() -> anyhow::Result<()> {
     let mut gpu = pollster::block_on(GpuContext::new(window.clone(), size.width, size.height))?;
 
     let mut text_system = TextSystem::new();
-    let buffer = TextBuffer::from_str(
-        "Quantum Studio\n\nA GPU-accelerated, Rust-native IDE.\nPhase 4 starts soon.\n",
-    );
+    let mut editor = EditorWidget::new(TextBuffer::from_str(
+        "Quantum Studio\n\nA GPU-accelerated, Rust-native IDE.\nType something!\n",
+    ));
 
     let (mut text_renderer, mut cursor_rect) =
-        build_editor_text_renderer(&gpu, &mut text_system, &buffer, (size.width, size.height))?;
+        build_editor_text_renderer(&gpu, &mut text_system, &editor, (size.width, size.height))?;
     let cursor_renderer = CursorRenderer::new(gpu.device(), gpu.surface_format());
 
-    let start_time = Instant::now();
+    let mut last_activity = Instant::now();
 
     event_loop.run(move |event, elwt| {
         match event {
@@ -121,7 +155,7 @@ fn main() -> anyhow::Result<()> {
                         match build_editor_text_renderer(
                             &gpu,
                             &mut text_system,
-                            &buffer,
+                            &editor,
                             (new_size.width, new_size.height),
                         ) {
                             Ok((renderer, rect)) => {
@@ -133,9 +167,30 @@ fn main() -> anyhow::Result<()> {
                             }
                         }
                     }
+                    WindowEvent::KeyboardInput { event: key_event, .. } => {
+                        if let Some(ui_event) = translate_key_event(&key_event) {
+                            editor.handle_key_event(ui_event);
+                            last_activity = Instant::now();
+
+                            match build_editor_text_renderer(
+                                &gpu,
+                                &mut text_system,
+                                &editor,
+                                gpu.size(),
+                            ) {
+                                Ok((renderer, rect)) => {
+                                    text_renderer = renderer;
+                                    cursor_rect = rect;
+                                }
+                                Err(e) => {
+                                    tracing::warn!(error = ?e, "failed to rebuild text renderer after key event")
+                                }
+                            }
+                        }
+                    }
                     WindowEvent::RedrawRequested => {
                         let blink_on =
-                            (start_time.elapsed().as_millis() / BLINK_PERIOD_MS) % 2 == 0;
+                            (last_activity.elapsed().as_millis() / BLINK_PERIOD_MS) % 2 == 0;
 
                         if blink_on {
                             cursor_renderer.update(gpu.queue(), cursor_rect, gpu.size());
