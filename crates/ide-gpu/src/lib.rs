@@ -4,6 +4,9 @@ use thiserror::Error;
 mod text_renderer;
 pub use text_renderer::{PositionedGlyph, TextRenderer};
 
+mod cursor_renderer;
+pub use cursor_renderer::CursorRenderer;
+
 #[derive(Error, Debug)]
 pub enum GpuError {
     #[error("failed to create surface: {0}")]
@@ -121,7 +124,11 @@ impl GpuContext {
         self.config.format
     }
 
-    pub fn render(&self, text_renderer: Option<&TextRenderer>) -> Result<(), wgpu::SurfaceError> {
+    pub fn render(
+        &self,
+        text_renderer: Option<&TextRenderer>,
+        cursor_renderer: Option<&CursorRenderer>,
+    ) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output
             .texture
@@ -151,6 +158,9 @@ impl GpuContext {
 
             if let Some(tr) = text_renderer {
                 tr.render(&mut render_pass);
+            }
+            if let Some(cr) = cursor_renderer {
+                cr.render(&mut render_pass);
             }
         }
 
