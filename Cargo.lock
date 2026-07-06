@@ -711,7 +711,9 @@ dependencies = [
 name = "ide-gpu"
 version = "0.1.0"
 dependencies = [
+ "bytemuck",
  "ide-core",
+ "ide-text",
  "pollster",
  "raw-window-handle",
  "thiserror",
@@ -1213,6 +1215,7 @@ dependencies = [
  "anyhow",
  "ide-core",
  "ide-gpu",
+ "ide-text",
  "pollster",
  "thiserror",
  "tracing",

@@ -1,6 +1,9 @@
 use std::sync::Arc;
 use thiserror::Error;
 
+mod text_renderer;
+pub use text_renderer::{PositionedGlyph, TextRenderer};
+
 #[derive(Error, Debug)]
 pub enum GpuError {
     #[error("failed to create surface: {0}")]
@@ -94,7 +97,7 @@ impl GpuContext {
 
     pub fn resize(&mut self, width: u32, height: u32) {
         if width == 0 || height == 0 {
-            return; // window minimized — skip, don't crash on a 0x0 surface
+            return;
         }
         self.size = (width, height);
         self.config.width = width;
@@ -105,7 +108,20 @@ impl GpuContext {
     pub fn size(&self) -> (u32, u32) {
         self.size
     }
-    pub fn render(&self) -> Result<(), wgpu::SurfaceError> {
+
+    pub fn device(&self) -> &wgpu::Device {
+        &self.device
+    }
+
+    pub fn queue(&self) -> &wgpu::Queue {
+        &self.queue
+    }
+
+    pub fn surface_format(&self) -> wgpu::TextureFormat {
+        self.config.format
+    }
+
+    pub fn render(&self, text_renderer: Option<&TextRenderer>) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output
             .texture
@@ -118,8 +134,8 @@ impl GpuContext {
             });
 
         {
-            let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("clear-pass"),
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("main-pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
@@ -132,6 +148,10 @@ impl GpuContext {
                 occlusion_query_set: None,
                 timestamp_writes: None,
             });
+
+            if let Some(tr) = text_renderer {
+                tr.render(&mut render_pass);
+            }
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
