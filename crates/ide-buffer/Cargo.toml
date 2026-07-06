@@ -1,0 +1,12 @@
+[package]
+name = "ide-buffer"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.79"
+
+[dependencies]
+ide-core = { path = "../ide-core" }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+ropey = "1.6"
