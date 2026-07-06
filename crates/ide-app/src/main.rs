@@ -8,7 +8,7 @@ use ide_ui::{EditorWidget, Key, KeyEvent};
 use winit::{
     event::{ElementState, Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
-    keyboard::{Key as WinitKey, NamedKey},
+    keyboard::{Key as WinitKey, ModifiersState, NamedKey},
     window::WindowBuilder,
 };
 
@@ -140,6 +140,7 @@ fn main() -> anyhow::Result<()> {
     let cursor_renderer = CursorRenderer::new(gpu.device(), gpu.surface_format());
 
     let mut last_activity = Instant::now();
+    let mut modifiers = ModifiersState::empty();
 
     event_loop.run(move |event, elwt| {
         match event {
@@ -167,23 +168,52 @@ fn main() -> anyhow::Result<()> {
                             }
                         }
                     }
+                    WindowEvent::ModifiersChanged(new_modifiers) => {
+                        modifiers = new_modifiers.state();
+                    }
                     WindowEvent::KeyboardInput { event: key_event, .. } => {
-                        if let Some(ui_event) = translate_key_event(&key_event) {
-                            editor.handle_key_event(ui_event);
-                            last_activity = Instant::now();
-
-                            match build_editor_text_renderer(
-                                &gpu,
-                                &mut text_system,
-                                &editor,
-                                gpu.size(),
-                            ) {
-                                Ok((renderer, rect)) => {
-                                    text_renderer = renderer;
-                                    cursor_rect = rect;
+                        if key_event.state == ElementState::Pressed {
+                            let handled_as_shortcut = if modifiers.control_key() {
+                                match &key_event.logical_key {
+                                    WinitKey::Character(s) if s.eq_ignore_ascii_case("z") => {
+                                        editor.undo();
+                                        true
+                                    }
+                                    WinitKey::Character(s) if s.eq_ignore_ascii_case("y") => {
+                                        editor.redo();
+                                        true
+                                    }
+                                    _ => false,
                                 }
-                                Err(e) => {
-                                    tracing::warn!(error = ?e, "failed to rebuild text renderer after key event")
+                            } else {
+                                false
+                            };
+
+                            let ui_event = if handled_as_shortcut {
+                                None
+                            } else {
+                                translate_key_event(&key_event)
+                            };
+
+                            if handled_as_shortcut || ui_event.is_some() {
+                                if let Some(ui_event) = ui_event {
+                                    editor.handle_key_event(ui_event);
+                                }
+                                last_activity = Instant::now();
+
+                                match build_editor_text_renderer(
+                                    &gpu,
+                                    &mut text_system,
+                                    &editor,
+                                    gpu.size(),
+                                ) {
+                                    Ok((renderer, rect)) => {
+                                        text_renderer = renderer;
+                                        cursor_rect = rect;
+                                    }
+                                    Err(e) => {
+                                        tracing::warn!(error = ?e, "failed to rebuild text renderer after key event")
+                                    }
                                 }
                             }
                         }

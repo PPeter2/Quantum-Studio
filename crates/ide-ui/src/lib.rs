@@ -68,6 +68,29 @@ impl EditorWidget {
         }
     }
 
+    pub fn undo(&mut self) -> bool {
+        let did_undo = self.buffer.undo();
+        if did_undo {
+            self.clamp_cursor();
+        }
+        did_undo
+    }
+
+    pub fn redo(&mut self) -> bool {
+        let did_redo = self.buffer.redo();
+        if did_redo {
+            self.clamp_cursor();
+        }
+        did_redo
+    }
+
+    fn clamp_cursor(&mut self) {
+        let max_line = self.buffer.line_count().saturating_sub(1);
+        self.cursor.line = self.cursor.line.min(max_line);
+        let len = self.line_len(self.cursor.line);
+        self.cursor.column = self.cursor.column.min(len);
+    }
+
     fn insert_char(&mut self, c: char) {
         let mut encode_buf = [0u8; 4];
         let s = c.encode_utf8(&mut encode_buf);
@@ -267,5 +290,46 @@ mod tests {
 
         press(&mut editor, Key::End);
         assert_eq!(editor.cursor(), Position::new(0, 5));
+    }
+
+    #[test]
+    fn undo_reverses_last_edit() {
+        let mut editor = EditorWidget::new(TextBuffer::new());
+        press(&mut editor, Key::Char('a'));
+        press(&mut editor, Key::Char('b'));
+        assert_eq!(editor.buffer().to_string_full(), "ab");
+
+        assert!(editor.undo());
+        assert_eq!(editor.buffer().to_string_full(), "a");
+    }
+
+    #[test]
+    fn redo_reapplies_after_undo() {
+        let mut editor = EditorWidget::new(TextBuffer::new());
+        press(&mut editor, Key::Char('x'));
+        editor.undo();
+        assert_eq!(editor.buffer().to_string_full(), "");
+
+        assert!(editor.redo());
+        assert_eq!(editor.buffer().to_string_full(), "x");
+    }
+
+    #[test]
+    fn undo_with_empty_history_returns_false() {
+        let mut editor = EditorWidget::new(TextBuffer::new());
+        assert!(!editor.undo());
+    }
+
+    #[test]
+    fn undo_clamps_cursor_when_a_line_disappears() {
+        let mut editor = EditorWidget::new(TextBuffer::from_str("ab"));
+        editor.cursor = Position::new(0, 2);
+        press(&mut editor, Key::Enter);
+        assert_eq!(editor.cursor(), Position::new(1, 0));
+
+        assert!(editor.undo());
+        assert_eq!(editor.buffer().to_string_full(), "ab");
+        assert_eq!(editor.cursor().line, 0);
+        assert!(editor.cursor().column <= 2);
     }
 }
